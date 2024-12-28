@@ -13,16 +13,34 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.terokeranen.Esp32Project",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app needs your location to scan Wi-Fi networks.",
+        "NSLocationAlwaysUsageDescription": "This app needs your location to scan Wi-Fi networks even when in the background.",
+        "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to communicate with ESP32 devices.",
+        "NSBluetoothPeripheralUsageDescription": "This app requires Bluetooth to send Wi-Fi credentials to ESP32."
+      }
     },
     "android": {
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "ACCESS_FINE_LOCATION"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.terokeranen.Esp32Project"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "13be9e31-5927-4436-b2ac-a384bfe5397a"
+      }
     }
   }
 }

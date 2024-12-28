@@ -9,10 +9,21 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@reduxjs/toolkit": "^2.5.0",
+    "axios": "^1.7.9",
+    "buffer": "^6.0.3",
+    "esp32project": "file:",
     "expo": "~52.0.18",
+    "expo-dev-client": "~5.0.6",
+    "expo-location": "~18.0.4",
     "expo-status-bar": "~2.0.0",
     "react": "18.3.1",
-    "react-native": "0.76.5"
+    "react-native": "0.76.5",
+    "react-native-ble-plx": "^3.2.1",
+    "react-native-wifi-reborn": "^4.13.0",
+    "react-redux": "^9.2.0",
+    "redux-thunk": "^3.1.0",
+    "@react-native-async-storage/async-storage": "1.23.1"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
