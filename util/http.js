@@ -1,6 +1,7 @@
 import axios from 'axios';
+import {BASE_URL} from "@env";
 
 export default axios.create({
-    baseURL: "https://esp32-server-3662e00021b5.herokuapp.com"
+    baseURL: process.env.BASE_URL
     // baseURL: "http://localhost:3000"
 })

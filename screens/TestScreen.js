@@ -16,14 +16,13 @@ import { Buffer } from "buffer";
 import http from "../util/http";
 import { useSelector } from "react-redux";
 import DownloadScreen from "../components/DownloadScreen";
+import { connectToDevice, scanForDevices, sendWiFiCredentials, sendMotorCommand } from "../util/ConnectDevice";
+import SendWifiModal from "../components/SendWifiModal";
+import Joystick from "../components/Joystick";
 
-// BLE-UUID:t
-const SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
-const CHARACTERISTIC_SSID_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
-const CHARACTERISTIC_PASSWORD_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
-const CHARACTERISTIC_LED_UUID = "6E400004-B5A3-F393-E0A9-E50E24DCCA9E";
 
-const NODEJS_BASE_URL = "https://esp32-server-3662e00021b5.herokuapp.com"; // Vaihda omasi
+
+
 const manager = new BleManager();
 
 export default function TestScreen() {
@@ -45,6 +44,9 @@ export default function TestScreen() {
       id: "",
       name: "",
     });
+
+    const [modalVisible, setModalVisible] = useState(false);
+    const [joystickValue, setJoystickValue] = useState({ x: 0, y: 0 });
 
   // Jos haluat hakea userId Reduxista
   const userId = useSelector((state) => state.user.userId);
@@ -92,162 +94,29 @@ export default function TestScreen() {
     }
   };
 
-
-  // Käynnistä BLE-skannaus
-  const scanForDevices = () => {
-    console.log("[BLE] Starting scan...");
-    setDevices([]);
-
-    manager.startDeviceScan(null, null, (error, device) => {
-      if (error) {
-        console.error("[BLE] Scan error:", error.message);
-        Alert.alert("Error", "Bluetooth scanning failed: " + error.message);
-        return;
-      }
-      if (device && device.name === "ESP32 Wi-Fi Config") {
-        console.log("[BLE] Found device:", device.id, device.name);
-        setDevices((prev) => [...prev, device]);
-      }
-    });
-
-    setTimeout(() => {
-      console.log("[BLE] Stopping scan.");
-      manager.stopDeviceScan();
-    }, 5000);
-  };
-
-  // Yhdistä valittuun laitteeseen
-  const connectToDevice = async (device) => {
-
-    setIsLoading(true);
-
-    try {
-      manager.stopDeviceScan();
-      console.log(`[BLE] Connecting to device: ${device.id} (${device.name})`);
-
-      const connected = await manager.connectToDevice(device.id, {
-        autoConnect: false,
-      });
-      console.log("[BLE] Device connected:", connected.id);
-
-      // Kuunnellaan disconnectia
-      manager.onDeviceDisconnected(device.id, (error, disconnectedDevice) => {
-        console.log(
-          "[BLE] Device disconnected:",
-          disconnectedDevice?.id,
-          error
-        );
-        setConnectedDevice(null);
-        setConnectedDeviceId("");
-        setWifiConfigured(false);
-      });
-
-      // Hae palvelut/karakteristiikat
-      await connected.discoverAllServicesAndCharacteristics();
-      console.log("[BLE] Services and characteristics discovered.");
-
-      setConnectedDevice(connected);
-
-      console.log("connected", connected)
-
-      // Aseta selkeä info, jota voit näyttää UI:ssa
-      setConnectedDeviceInfo({
-        id: connected.id,
-        name: connected.name || "Unknown",
-      });
-      setIsLoading(false);
-
-      Alert.alert("Connected", `Connected to ${device.name}`);
-    } catch (error) {
-      setIsLoading(false);
-      console.error("[BLE] Connection error:", error.message);
-      Alert.alert("Error", "Failed to connect to device");
-    }
-  };
-
-  // WebSocket-yhteyden odotusfunktio
-  const waitForWebSocket = () => {
-    return new Promise((resolve) => {
-        const interval = setInterval(() => {
-            http.get('/api/ws-status')
-                .then((response) => {
-                    if (response.data.connected) {
-                        clearInterval(interval);
-                        resolve(true);
-                    }
-                })
-                .catch((err) => {
-                    console.error("[WebSocket] Waiting for reconnection...");
-                });
-        }, 2000);  // Tarkista 2 sekunnin välein
-    });
-  };
-
-  // Lähetä SSID + Password BLE:llä
-  const sendWiFiCredentials = async () => {
-
-    console.log("TESTI 1", connectedDeviceInfo.id);
-    if (!connectedDevice) {
-      Alert.alert("Error", "No connected device");
+  const handleSendCredentials = async () => {
+    if (!ssid || !password) {
+      alert("Please enter SSID and Password.");
       return;
     }
-    try {
-      setIsLoading(true);
-      await connectedDevice.writeCharacteristicWithResponseForService(
-        SERVICE_UUID,
-        CHARACTERISTIC_SSID_UUID,
-        Buffer.from(ssid).toString("base64")
-      );
-
-      await connectedDevice.writeCharacteristicWithResponseForService(
-        SERVICE_UUID,
-        CHARACTERISTIC_PASSWORD_UUID,
-        Buffer.from(password).toString("base64")
-      );
-
-      setWifiConfigured(true);
-      Alert.alert("Success", "Wi-Fi credentials sent to ESP32");
-      
-      
-      
-      // Odota hetki ennen kuin päivitetään laitteet
-      setTimeout(async () => {
-        try {
-          const postResponse = await http.post(`/api/device`, {
-            userId,
-            deviceId: connectedDeviceInfo.id,
-            name: "new device",
-            type: "Keskus",
-            status: "online"
-          }, {
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-
-          console.log("Device added to DB:", postResponse.data);
-
-          // Poista laite skannatuista laitteista
-          setDevices((prevDevices) => 
-            prevDevices.filter(device => device.id !== connectedDeviceInfo.id)
-          );
-
-          // Odota, että WebSocket-yhteys varmistuu
-          await waitForWebSocket();
-
-          // Päivitä käyttäjän laitteet tietokannasta
-          fetchUserDevices(userId);
-        
-        } catch (err) {
-          console.error("[POST /api/device] error:", err.message);
-        }
-      }, 5000);  // Odotetaan 5 sekuntia ennen kuin tarkistetaan laite
-    } catch (error) {
-      setIsLoading(false);
-      console.error("[BLE] sendWiFiCredentials error:", error);
-      Alert.alert("Error", "Failed to send Wi-Fi credentials");
-    }
+    await sendWiFiCredentials(
+      ssid,
+      password,
+      connectedDevice,
+      connectedDeviceInfo,
+      setIsLoading,
+      setWifiConfigured,
+      userId,
+      setDevices,
+      fetchUserDevices
+    );
+    setModalVisible(false);
   };
+
+
+
+
+
 
   // Node.js-backend -> LED on/off
   const toggleLEDViaNodeJS = async (turnOn) => {
@@ -264,6 +133,20 @@ export default function TestScreen() {
     }
   };
 
+  const handleMotorForward = () => {
+    sendMotorCommand("forward");
+  }
+
+  const handleMotorBackward = () => {
+    sendMotorCommand("backward");
+  }
+
+  const handleMotorStop = () => {
+    sendMotorCommand("stop");
+  }
+
+
+
 
   // Valitaan “ensimmäinen” laite kannasta, jos halutaan näyttää, että userilla on jo laite
   const myDeviceFromDb = dbDevices.length > 0 ? dbDevices[0] : null;
@@ -278,7 +161,12 @@ export default function TestScreen() {
       {/* Skannaa laitteet */}
       <View style={styles.scan}>
 
-        <TouchableOpacity style={styles.btn} onPress={scanForDevices}>
+      
+      <Text>
+        X: {joystickValue.x.toFixed(2)} Y: {joystickValue.y.toFixed(2)}
+      </Text>
+
+        <TouchableOpacity style={styles.btn} onPress={() => scanForDevices(manager, setDevices)}>
           <Text style={{color: 'white', fontSize: 20}}>Scan for devices</Text>
         </TouchableOpacity>
   
@@ -298,7 +186,7 @@ export default function TestScreen() {
               <Text style={styles.deviceName}>
               {item.id}
               </Text>
-              <TouchableOpacity style={styles.btn} onPress={() => connectToDevice(item)}>
+              <TouchableOpacity style={styles.btn} onPress={() => connectToDevice(item, setIsLoading, manager, setConnectedDevice, setConnectedDeviceId, setWifiConfigured, setConnectedDeviceInfo, setModalVisible)}>
                 <Text style={{color: 'white'}}>Connect</Text>
               </TouchableOpacity>
               
@@ -320,33 +208,28 @@ export default function TestScreen() {
                 >
                     <Text style={{ color: 'white' }}>Turn On</Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity style={styles.btn} onPress={() => toggleLEDViaNodeJS(false)}>
-            <Text style={{color: 'white'}}>Turn Led off</Text>
-          </TouchableOpacity>
+                  <Text style={{color: 'white'}}>Turn Led off</Text>
+                </TouchableOpacity>
+{/* 
+                <TouchableOpacity style={styles.btn} onPress={handleMotorForward}>
+                <Text style={styles.btnText}>Move Forward</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={styles.btn} onPress={handleMotorBackward}>
+                <Text style={styles.btnText}>Move Backward</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={styles.btn} onPress={handleMotorStop}>
+                <Text style={styles.btnText}>stop</Text>
+                </TouchableOpacity> */}
             </View>
         ))
-    )} 
+      )} 
 </View>
-      {/* {(myDeviceFromDb || wifiConfigured) && (
-      
-        <View style={styles.toggleBtn}>
-          <Text style={styles.toggleTitle}>LED Control (via Node.js):</Text>
+      <Joystick onChange={(value) => setJoystickValue(value)} />
 
-          <TouchableOpacity style={styles.btn} onPress={() => toggleLEDViaNodeJS(true)}>
-            <Text style={{color: 'white'}}>Turn Led on</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.btn} onPress={() => toggleLEDViaNodeJS(false)}>
-            <Text style={{color: 'white'}}>Turn Led off</Text>
-          </TouchableOpacity>
-          
-          <View style={{ height: 10 }} />
-
-          <View style={{ marginTop: 10 }}>
-            <Text>LED is currently {ledState ? "ON" : "OFF"}</Text>
-          </View>
-        </View>
-      )} */}
 
 
       {/* Näytä tallennetut laitteet kannasta */}
@@ -360,41 +243,18 @@ export default function TestScreen() {
       ) : (
         <Text>null</Text>
       )}
-      {/* {dbDevices.length > 0 && (
-
-        <View style={styles.userDevices}>
-        <Text style={{ fontWeight: "bold" }}>Devices in DB:</Text>
-        {dbDevices.length === 0 && <Text>No devices found for user {userId}</Text>}
-        {dbDevices.map((dev) => (
-          <Text key={dev.id}>
-            DeviceID: {dev.device_id} - SSID: {dev.ssid}
-          </Text>
-        ))}
-      </View>
-
-      )} */}
 
       {/* Syötetään SSID / Password vain jos laitetta ei ole vielä Wi-Fi:ssä */}
       {connectedDevice && !wifiConfigured && (
-        <View style={styles.sendCredentials}>
-          <TextInput
-            placeholder="Enter SSID"
-            value={ssid}
-            onChangeText={setSsid}
-            style={styles.input}
-          />
-          <TextInput
-            placeholder="Enter Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            style={styles.input}
-          />
-          <TouchableOpacity style={styles.btn} onPress={sendWiFiCredentials}>
-            <Text style={{color:'white'}}> Send Wi-Fi Credentials</Text>
-          </TouchableOpacity>
-          
-        </View>
+        <SendWifiModal 
+          isVisible={modalVisible}
+          onClose={() => setModalVisible(false)}
+          ssid={ssid}
+          setSsid={setSsid}
+          password={password}
+          setPassword={setPassword}
+          sendWiFiCredentials={handleSendCredentials}
+        />
       )}
 
 
