@@ -16,7 +16,7 @@ import { Buffer } from "buffer";
 import http from "../util/http";
 import { useSelector } from "react-redux";
 import DownloadScreen from "../components/DownloadScreen";
-import { connectToDevice, scanForDevices, sendWiFiCredentials, sendMotorCommand } from "../util/ConnectDevice";
+import { connectToDevice, scanForDevices, sendWiFiCredentials, sendMotorCommand, fetchRelayStatus } from "../util/ConnectDevice";
 import SendWifiModal from "../components/SendWifiModal";
 import Joystick from "../components/Joystick";
 
@@ -47,10 +47,31 @@ export default function TestScreen() {
 
     const [modalVisible, setModalVisible] = useState(false);
     const [joystickValue, setJoystickValue] = useState({ x: 0, y: 0 });
-
+    const [relayStatus, setRelayStatus] = useState("Unknown");
   // Jos haluat hakea userId Reduxista
   const userId = useSelector((state) => state.user.userId);
   console.log("userid", userId);
+
+    // 🔹 Hae releen tila automaattisesti 3 sekunnin välein
+// 🔹 Releen tilan haku API:sta
+const fetchRelayStatus = async () => {
+  try {
+    const response = await http.get("/api/relay-status");
+    console.log("[React Native] Relay status:", response.data.relayStatus);
+    setRelayStatus(response.data.relayStatus);
+  } catch (error) {
+    console.error("[React Native] Error fetching relay status:", error.message);
+  }
+};
+
+// 🔹 Hae releen tila automaattisesti 3 sekunnin välein
+useEffect(() => {
+  const interval = setInterval(() => {
+    fetchRelayStatus();
+  }, 3000); // 🔹 Hakee tiedon 3s välein
+
+  return () => clearInterval(interval); // 🔹 Pysäytä, jos komponentti unmountataan
+}, []);
 
   // BLE skannaus
   useEffect(() => {
@@ -175,24 +196,24 @@ export default function TestScreen() {
       {/* Listaa löydetyt laitteet */}
       <View>
 
-        <FlatList
-          data={devices}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.deviceItem}>
-              <Text style={styles.deviceName}>
-                {item.name}
-              </Text>
-              <Text style={styles.deviceName}>
-              {item.id}
-              </Text>
-              <TouchableOpacity style={styles.btn} onPress={() => connectToDevice(item, setIsLoading, manager, setConnectedDevice, setConnectedDeviceId, setWifiConfigured, setConnectedDeviceInfo, setModalVisible)}>
-                <Text style={{color: 'white'}}>Connect</Text>
-              </TouchableOpacity>
-              
-            </View>
-            )}
-        />
+      <FlatList
+        data={[...new Map(devices.map(device => [device.id, device])).values()]} // Poistaa duplikaatit
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={styles.deviceItem}>
+            <Text style={styles.deviceName}>{item.name}</Text>
+            <Text style={styles.deviceName}>{item.id}</Text>
+            <TouchableOpacity
+              style={styles.btn}
+              onPress={() =>
+                connectToDevice(item, setIsLoading, manager, setConnectedDevice, setConnectedDeviceId, setWifiConfigured, setConnectedDeviceInfo, setModalVisible)
+              }
+            >
+              <Text style={{ color: "white" }}>Connect</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      />
       </View>
       
       {/* Kun Wi-Fi on konffattu, näytä LED-komennot */}
@@ -212,6 +233,7 @@ export default function TestScreen() {
                 <TouchableOpacity style={styles.btn} onPress={() => toggleLEDViaNodeJS(false)}>
                   <Text style={{color: 'white'}}>Turn Led off</Text>
                 </TouchableOpacity>
+                <Text>relay status {relayStatus}</Text>
 {/* 
                 <TouchableOpacity style={styles.btn} onPress={handleMotorForward}>
                 <Text style={styles.btnText}>Move Forward</Text>

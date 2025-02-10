@@ -17,7 +17,15 @@ export const scanForDevices = (manager, setDevices) => {
       }
       if (device && device.name === "ESP32 Wi-Fi Config") {
         console.log("[BLE] Found device:", device.id, device.name);
-        setDevices((prev) => [...prev, device]);
+        // setDevices((prev) => [...prev, device]);
+        //uusi
+        setDevices((prev) => {
+          const exists = prev.some((d) => d.id === device.id);
+          if (!exists) {
+            return [...prev, device];
+          }
+          return prev;
+        })
       }
     });
 
@@ -187,5 +195,14 @@ export const sendMotorSpeed = async (speed, direction) => {
     console.log(`[NodeJs] Motor speed sent: ${speed}, Direction: ${direction}`);
   } catch (error) {
     console.error("[NodeJS] Error sending motor speed:", error.message);
+  }
+};
+
+export const fetchRelayStatus = async (setRelayStatus) => {
+  try {
+    const response = await http.get("/api/relay-status"); // 🔹 Haetaan tieto Node.js API:sta
+    setRelayStatus(response.data.relayStatus); // 🔹 Päivitetään React Native -tila
+  } catch (error) {
+    console.error("[fetchRelayStatus] Error fetching relay status:", error.message);
   }
 };
