@@ -14,7 +14,16 @@ In this project, I use an ESP32 device that can be connected to a Wi-Fi network.
 3. Create an expo build and install APK/IPA manually:
     ```
     eas build --platform android
+
     ```
     eas build --platform ios
+
+4. Connect to Wi-Fi
+ -Connect the mobile device to your Wi-Fi- network
+ - Use command:
+    ```
+    npm start
+
+- Use device camera to read QR-code
 
     
