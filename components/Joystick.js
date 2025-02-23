@@ -35,27 +35,37 @@ const Joystick = ({onChange}) => {
   // Päivitä joystickin arvoja reaaliajassa
   const onGestureEvent = Animated.event(
     [
-      {
-        nativeEvent: {
-          translationX: translateX,
-          translationY: translateY,
+        {
+            nativeEvent: {
+                translationX: translateX,
+                translationY: translateY,
+            },
         },
-      },
     ],
     {
-      useNativeDriver: false,
-      listener: (event) => {
-        const { translationX, translationY } = event.nativeEvent;
-        const x = Math.min(MAX_DISTANCE, Math.max(-MAX_DISTANCE, translationX));
-        const y = Math.min(MAX_DISTANCE, Math.max(-MAX_DISTANCE, translationY));
+        useNativeDriver: false,
+        listener: (event) => {
+            let { translationX, translationY } = event.nativeEvent;
 
-        const normalizedX = (x / MAX_DISTANCE).toFixed(2);
-        const normalizedY = (-y / MAX_DISTANCE).toFixed(2);  // Y-akseli käännetään
+            // Lasketaan etäisyys keskipisteestä
+            const distance = Math.sqrt(translationX ** 2 + translationY ** 2);
+            if (distance > MAX_DISTANCE) {
+                // Skaalataan X ja Y niin, että joystick pysyy ympyrän sisällä
+                const scale = MAX_DISTANCE / distance;
+                translationX *= scale;
+                translationY *= scale;
+            }
 
-        sendJoystickCommand(normalizedX, normalizedY);
-      },
+            translateX.setValue(translationX);
+            translateY.setValue(translationY);
+
+            const normalizedX = (translationX / MAX_DISTANCE).toFixed(2);
+            const normalizedY = (-translationY / MAX_DISTANCE).toFixed(2); // Y-akseli käännetään
+
+            sendJoystickCommand(normalizedX, normalizedY);
+        },
     }
-  );
+);
 
 
   // Palauta joystick keskelle, kun ele päättyy
