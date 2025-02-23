@@ -14,7 +14,8 @@ In this project, I use an ESP32 device that can be connected to a Wi-Fi network.
 3. Create an expo build and install APK/IPA manually:
     ```
     eas build --platform android
-
+    ```
+    
     ```
     eas build --platform ios
 
