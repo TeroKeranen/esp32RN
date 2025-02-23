@@ -22,11 +22,12 @@
     "react-native": "0.76.5",
     "react-native-ble-plx": "^3.2.1",
     "react-native-dotenv": "^3.4.11",
+    "react-native-gesture-handler": "~2.20.2",
+    "react-native-reanimated": "~3.16.1",
+    "react-native-websocket": "^1.0.2",
     "react-native-wifi-reborn": "^4.13.0",
     "react-redux": "^9.2.0",
-    "redux-thunk": "^3.1.0",
-    "react-native-gesture-handler": "~2.20.2",
-    "react-native-reanimated": "~3.16.1"
+    "redux-thunk": "^3.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

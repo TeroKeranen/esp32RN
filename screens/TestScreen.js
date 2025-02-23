@@ -19,6 +19,7 @@ import DownloadScreen from "../components/DownloadScreen";
 import { connectToDevice, scanForDevices, sendWiFiCredentials, sendMotorCommand, fetchRelayStatus } from "../util/ConnectDevice";
 import SendWifiModal from "../components/SendWifiModal";
 import Joystick from "../components/Joystick";
+import {BASE_URL} from "@env";
 
 
 
@@ -47,31 +48,50 @@ export default function TestScreen() {
 
     const [modalVisible, setModalVisible] = useState(false);
     const [joystickValue, setJoystickValue] = useState({ x: 0, y: 0 });
+    // 10.2.2025
     const [relayStatus, setRelayStatus] = useState("Unknown");
+    const [ws, setWs] = useState(null);
   // Jos haluat hakea userId Reduxista
   const userId = useSelector((state) => state.user.userId);
   console.log("userid", userId);
 
-    // 🔹 Hae releen tila automaattisesti 3 sekunnin välein
-// 🔹 Releen tilan haku API:sta
-const fetchRelayStatus = async () => {
-  try {
-    const response = await http.get("/api/relay-status");
-    console.log("[React Native] Relay status:", response.data.relayStatus);
-    setRelayStatus(response.data.relayStatus);
-  } catch (error) {
-    console.error("[React Native] Error fetching relay status:", error.message);
-  }
-};
+  // 10.2.2025
+  useEffect(() => {
+    // WebSocket URL - Käytä ympäristömuuttujaa
+    const wsUrl = BASE_URL.replace("https://", "wss://") + "/ws";
+    console.log("Connecting to WebSocket:", wsUrl);
 
-// 🔹 Hae releen tila automaattisesti 3 sekunnin välein
-useEffect(() => {
-  const interval = setInterval(() => {
-    fetchRelayStatus();
-  }, 3000); // 🔹 Hakee tiedon 3s välein
+    const socket = new WebSocket(wsUrl);
 
-  return () => clearInterval(interval); // 🔹 Pysäytä, jos komponentti unmountataan
-}, []);
+    socket.onopen = () => {
+      console.log("[WebSocket] Connected");
+      socket.send("ping"); // Lähetä testiviesti ESP32:lle
+    };
+
+    socket.onmessage = (event) => {
+      console.log("[WebSocket] Received:", event.data);
+      if (event.data === "relay:closed") {
+        setRelayStatus("Closed");
+      } else if (event.data === "relay:open") {
+        setRelayStatus("Open");
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error("[WebSocket] Error:", error.message);
+    };
+
+    socket.onclose = () => {
+      console.log("[WebSocket] Disconnected");
+    };
+
+    setWs(socket);
+
+    return () => {
+      socket.close();
+    };
+  }, []);
+
 
   // BLE skannaus
   useEffect(() => {
